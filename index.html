@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nmap CVE Scanner</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.22.9/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        /* Custom styles for enhanced visuals */
+        .gradient-bg {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        }
+        .dark .gradient-bg {
+            background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #60a5fa;
+            border-right-color: #60a5fa;
+            animation: spin 0.8s ease-in-out infinite;
+            box-shadow: 0 0 10px rgba(96, 165, 250, 0.5);
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .upload-btn::before {
+            content: '\1F4C2'; /* Folder icon */
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen flex items-center justify-center dark:text-gray-100">
+    <div id="root"></div>
+    <script type="text/babel">
+        function FileUpload({ onResults, setLoading }) {
+            const handleFileChange = async (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                setLoading(true);
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        onResults(data.results);
+                    }
+                } catch (error) {
+                    alert('Error uploading file: ' + error.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div class="mb-10">
+                    <label class="block text-2xl font-bold text-white dark:text-gray-200 mb-4">
+                        Upload Nmap XML File
+                    </label>
+                    <input
+                        type="file"
+                        accept=".xml"
+                        onChange={handleFileChange}
+                        class="block w-full text-sm text-gray-200 file:mr-6 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-500 file:to-indigo-600 file:text-white hover:file:from-blue-600 hover:file:to-indigo-700 transition-all duration-300 upload-btn"
+                    />
+                </div>
+            );
+        }
+
+        function ServiceCard({ service, cves, recommendation }) {
+            return (
+                <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl mb-8 card-hover">
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-5">
+                        {service.service} ({service.product} {service.version}) on {service.ip}:{service.port}/{service.protocol}
+                    </h3>
+                    <h4 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">CVEs Found:</h4>
+                    <ul class="list-disc pl-7 mb-5 text-gray-700 dark:text-gray-300">
+                        {cves.map(cve => (
+                            <li key={cve.cve_id} class="mb-3">
+                                <strong class="text-indigo-600 dark:text-indigo-400">{cve.cve_id}</strong> (Severity: {cve.severity}, Score: {cve.score})<br />
+                                <span class="text-gray-600 dark:text-gray-400">{cve.description}</span>
+                            </li>
+                        ))}
+                    </ul>
+                    <h4 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Recommendations:</h4>
+                    <div class="text-gray-700 dark:text-gray-300 leading-relaxed" dangerouslySetInnerHTML={{ __html: recommendation.replace(/\n/g, '<br />').replace(/\*/g, '•') }} />
+                </div>
+            );
+        }
+
+        function App() {
+            const [results, setResults] = React.useState([]);
+            const [loading, setLoading] = React.useState(false);
+
+            return (
+                <div class="max-w-6xl mx-auto p-6 sm:p-10">
+                    <h1 class="text-5xl font-extrabold text-white dark:text-gray-100 mb-10 text-center bg-gray-900/80 dark:bg-gray-900/90 py-6 rounded-xl shadow-lg">Nmap CVE Scanner</h1>
+                    <FileUpload onResults={setResults} setLoading={setLoading} />
+                    {loading && (
+                        <div class="text-center">
+                            <div class="inline-block h-14 w-14 border-4 rounded-full spinner"></div>
+                            <p class="mt-4 text-xl text-white dark:text-gray-200">Processing...</p>
+                        </div>
+                    )}
+                    {!loading && results.length === 0 && (
+                        <p class="text-center text-xl text-white dark:text-gray-200 bg-gray-900/80 dark:bg-gray-900/90 p-8 rounded-xl shadow-sm">No results yet. Upload an Nmap XML file to begin.</p>
+                    )}
+                    {!loading && results.length > 0 && (
+                        <div>
+                            {results.map((result, index) => (
+                                <ServiceCard
+                                    key={index}
+                                    service={result.service}
+                                    cves={result.cves}
+                                    recommendation={result.recommendation}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
